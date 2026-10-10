@@ -1,0 +1,21 @@
+# Credentials and local configuration
+*.pfx
+*.p12
+*.pem
+*.key
+*.sec
+secrets*.psd1
+*.local.ps1
+Config/Local/
+
+# Test output
+TestResults*.xml
+coverage*.xml
+/.pester/
+
+# Key material and payment data never belong here
+*.ppk
+*.asc
+*.gpg
+*.pgp
+*.sec
