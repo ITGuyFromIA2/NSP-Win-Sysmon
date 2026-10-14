@@ -3,7 +3,7 @@
 ## 0.1.0 (unreleased)
 
 - `New-NSPSysmonFileWatchConfig`: file-create rules for folders (trailing-backslash match),
-  excluded extensions, every other event type off unless `-KeepDefaultEvents`.
+  only some extensions (`-IncludeExtension`), excluded extensions, every other event type off unless `-KeepDefaultEvents`.
 - `Install-NSPSysmon` / `Uninstall-NSPSysmon`: install or apply (installed binary for `-c`);
   refuses to replace another configuration without `-Force`.
 - `Test-NSPSysmonConfig` / `Get-NSPSysmonStatus`: state and drift from the driver's registry

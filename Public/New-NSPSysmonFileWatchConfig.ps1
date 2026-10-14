@@ -8,14 +8,17 @@ function New-NSPSysmonFileWatchConfig {
         text; Install-NSPSysmon writes and applies it, Test-NSPSysmonConfig checks it is in force.
 
         Each folder matches files anywhere beneath it ("begin with" the folder plus a backslash, so
-        C:\Drop doesn't also match C:\Dropbox). -ExcludeExtension skips files the job writes
-        itself (e.g. its own .pgp output) so it doesn't trigger on them.
+        C:\Drop doesn't also match C:\Dropbox). -IncludeExtension narrows that to files with
+        those extensions (each folder AND one of the extensions). -ExcludeExtension skips files
+        the job writes itself (e.g. its own .pgp output) so it doesn't trigger on them.
 
         Sysmon has one configuration per computer. Unless -KeepDefaultEvents, every other event
         type gets an empty include rule (log nothing), so the computer's Sysmon log holds only the
         file watch - not every process start, which Sysmon logs when no rule says otherwise.
     .EXAMPLE
         New-NSPSysmonFileWatchConfig -Path 'D:\Jobs\Outbound' -ExcludeExtension '.pgp'
+    .EXAMPLE
+        New-NSPSysmonFileWatchConfig -Path 'D:\Drop' -IncludeExtension '.txt'
     .EXAMPLE
         $xml = New-NSPSysmonFileWatchConfig -Path 'D:\Drop\A', 'D:\Drop\B'
         Install-NSPSysmon -SysmonPath 'C:\Tools\Sysmon64.exe' -ConfigPath 'D:\Jobs\Sysmon.xml' -Configuration $xml
@@ -25,6 +28,7 @@ function New-NSPSysmonFileWatchConfig {
     [OutputType([string])]
     param(
         [Parameter(Mandatory)][string[]]$Path,
+        [string[]]$IncludeExtension,
         [string[]]$ExcludeExtension,
         [ValidatePattern('^\d+\.\d+$')][string]$SchemaVersion = '4.50',
         [switch]$KeepDefaultEvents
@@ -35,7 +39,9 @@ function New-NSPSysmonFileWatchConfig {
         $full = [IO.Path]::GetFullPath($p).TrimEnd('\')
         "$full\"
     }
-    $extensions = foreach ($e in $ExcludeExtension) { if ($e) { '.' + $e.TrimStart('.', '*') } }
+    $toExtension = { foreach ($e in $args[0]) { if ($e) { '.' + $e.TrimStart('.', '*') } } }
+    $includes = @(& $toExtension $IncludeExtension)
+    $extensions = @(& $toExtension $ExcludeExtension)
 
     $lines = [Collections.Generic.List[string]]::new()
     $lines.Add("<Sysmon schemaversion=`"$SchemaVersion`">")
@@ -43,10 +49,18 @@ function New-NSPSysmonFileWatchConfig {
     $lines.Add('  <EventFiltering>')
     $lines.Add('    <RuleGroup name="NSP file watch" groupRelation="or">')
     $lines.Add('      <FileCreate onmatch="include">')
-    foreach ($f in $folders) { $lines.Add("        <TargetFilename condition=`"begin with`">$(& $escape $f)</TargetFilename>") }
+    foreach ($f in $folders) {
+        if (-not $includes.Count) { $lines.Add("        <TargetFilename condition=`"begin with`">$(& $escape $f)</TargetFilename>"); continue }
+        foreach ($i in $includes) {
+            $lines.Add('        <Rule groupRelation="and">')
+            $lines.Add("          <TargetFilename condition=`"begin with`">$(& $escape $f)</TargetFilename>")
+            $lines.Add("          <TargetFilename condition=`"end with`">$(& $escape $i)</TargetFilename>")
+            $lines.Add('        </Rule>')
+        }
+    }
     $lines.Add('      </FileCreate>')
     $lines.Add('    </RuleGroup>')
-    if ($extensions) {
+    if ($extensions.Count) {
         $lines.Add('    <RuleGroup name="NSP file watch exclusions" groupRelation="or">')
         $lines.Add('      <FileCreate onmatch="exclude">')
         foreach ($x in $extensions) { $lines.Add("        <TargetFilename condition=`"end with`">$(& $escape $x)</TargetFilename>") }

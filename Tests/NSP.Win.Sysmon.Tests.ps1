@@ -31,6 +31,15 @@ Describe 'New-NSPSysmonFileWatchConfig' {
         $exclude = @($groups | Where-Object { $_.FileCreate.onmatch -eq 'exclude' }).FileCreate.TargetFilename
         @($exclude | ForEach-Object { "$($_.condition)|$($_.'#text')" }) | Should -Be @('end with|.pgp', 'end with|.tmp')
     }
+    It 'with -IncludeExtension matches each folder AND one of the extensions' {
+        $xml = [xml](New-NSPSysmonFileWatchConfig -Path 'D:\Drop', 'E:\In' -IncludeExtension 'txt', '*.csv')
+        $rules = @(@($xml.Sysmon.EventFiltering.RuleGroup | Where-Object { $_.FileCreate.onmatch -eq 'include' }).FileCreate.Rule)
+        $rules | ForEach-Object groupRelation | Select-Object -Unique | Should -Be 'and'
+        @($rules | ForEach-Object { ($_.TargetFilename | ForEach-Object { "$($_.condition)|$($_.'#text')" }) -join ' & ' }) | Should -Be @(
+            'begin with|D:\Drop\ & end with|.txt', 'begin with|D:\Drop\ & end with|.csv',
+            'begin with|E:\In\ & end with|.txt', 'begin with|E:\In\ & end with|.csv')
+        @($xml.Sysmon.EventFiltering.RuleGroup | Where-Object { $_.FileCreate.onmatch -eq 'include' }).FileCreate.TargetFilename | Should -BeNullOrEmpty -Because 'no bare folder rule would match every file'
+    }
     It 'turns every other event type off by default, and leaves them alone with -KeepDefaultEvents' {
         $xml = [xml](New-NSPSysmonFileWatchConfig -Path 'D:\Jobs\Out')
         $off = @($xml.Sysmon.EventFiltering.RuleGroup | ForEach-Object { $_.ChildNodes } | Where-Object { $_.Name -ne 'FileCreate' -and $_.onmatch -eq 'include' -and -not $_.HasChildNodes } | ForEach-Object Name)

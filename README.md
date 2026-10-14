@@ -7,7 +7,7 @@ Part of the `NSP.Win.*` family.
 
 | Function | Purpose |
 |---|---|
-| `New-NSPSysmonFileWatchConfig` | The configuration as text: file creates under the given folders, minus extensions the job writes itself - and, unless `-KeepDefaultEvents`, nothing else (Sysmon otherwise logs every process start). |
+| `New-NSPSysmonFileWatchConfig` | The configuration as text: file creates under the given folders (optionally only some extensions, `-IncludeExtension`), minus extensions the job writes itself - and, unless `-KeepDefaultEvents`, nothing else (Sysmon otherwise logs every process start). |
 | `Install-NSPSysmon` | Write the configuration and install Sysmon with it, or apply it to the installed Sysmon. Stops rather than replace a configuration it didn't write, unless `-Force`. |
 | `Test-NSPSysmonConfig` | Installed, running, loaded **this** file with **this** content: `InSync` and one line per problem. No elevation needed. |
 | `Get-NSPSysmonStatus` | Installed / running / version / which config file and hash it loaded (`-IncludeRules`, elevated, lists the loaded rules). |
