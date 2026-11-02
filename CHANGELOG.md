@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 (2026-11-02)
 
 - Add RuleGroupOnly to return an include-only file-watch fragment; existing full-config defaults remain unchanged.
 - `New-NSPSysmonFileWatchConfig -RuleName`: names each include rule, so a task trigger can select
