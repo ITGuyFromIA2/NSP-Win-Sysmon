@@ -3,8 +3,8 @@ function Find-NSPSysmon {
     .SYNOPSIS
         Finds the Sysmon executable: the given file or folder, then NSP_SYSMON, then the installed service's copy, then PATH. Returns its full path, or nothing.
     .DESCRIPTION
-        A folder is searched for Sysmon64.exe (on 64-bit Windows) then Sysmon.exe. NSP.Win.Sysmon
-        never downloads Sysmon; get it from https://learn.microsoft.com/sysinternals/downloads/sysmon.
+        A folder is searched for Sysmon64.exe (on 64-bit Windows) then Sysmon.exe. This function
+        never downloads Sysmon; Save-NSPSysmon does, on request, and checks Microsoft's signature.
     .EXAMPLE
         Find-NSPSysmon -Path 'C:\Jobs\SetupFiles'
     .EXAMPLE

@@ -47,3 +47,7 @@ $env:NSP_SYSMON_EXE = 'C:\Tools\Sysmon64.exe'   # optional: check the config aga
 
 Pester 5+. Sysmon is never installed or changed: the service, registry reader, and Sysmon runner
 are mocked.
+
+## Add rules to existing monitoring
+
+Use `New-NSPSysmonFileWatchConfig -Path C:\Synthetic\Input -IncludeExtension .pdf -RuleGroupOnly` to generate an include RuleGroup for review and merging into the authoritative configuration. This option does not install/apply anything or suppress other event types. Global ExcludeExtension rules are rejected in fragment mode because they could suppress unrelated monitoring. Existing configuration exclusions can still override these includes; validate the merged schema and observed events before deployment. The default full-configuration output is unchanged.

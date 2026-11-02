@@ -216,3 +216,52 @@ Describe 'Hashing (real)' {
         InModuleScope NSP.Win.Sysmon -Parameters @{ B = $bytes } { param($B) Get-NSPSysmonHash -Bytes $B } | Should -Be "SHA256=$((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash)"
     }
 }
+
+Describe 'New-NSPSysmonFileWatchConfig -RuleName' {
+    It 'names each include rule, with and without extensions, and leaves rules unnamed by default' {
+        $xml = [xml](New-NSPSysmonFileWatchConfig -Path 'D:\Drop' -IncludeExtension '.pdf' -RuleName 'NSP ScanBridge')
+        @($xml.Sysmon.EventFiltering.RuleGroup[0].FileCreate.Rule | ForEach-Object name) | Should -Be @('NSP ScanBridge')
+        $plain = [xml](New-NSPSysmonFileWatchConfig -Path 'D:\Drop' -RuleName 'NSP ScanBridge')
+        $plain.Sysmon.EventFiltering.RuleGroup[0].FileCreate.TargetFilename.name | Should -Be 'NSP ScanBridge'
+        (New-NSPSysmonFileWatchConfig -Path 'D:\Drop' -IncludeExtension '.pdf') | Should -Not -Match '<Rule name='
+    }
+    It 'keeps the name in a RuleGroupOnly fragment and rejects names that are not plain text' {
+        ([xml](New-NSPSysmonFileWatchConfig -Path 'D:\Drop' -IncludeExtension '.pdf' -RuleName 'NSP ScanBridge' -RuleGroupOnly)).RuleGroup.FileCreate.Rule.name | Should -Be 'NSP ScanBridge'
+        { New-NSPSysmonFileWatchConfig -Path 'D:\Drop' -RuleName 'bad"name' } | Should -Throw
+    }
+}
+
+Describe 'Save-NSPSysmon' {
+    BeforeAll {
+        $script:zipSource = Join-Path $TestDrive 'zip-src'
+        New-Item -ItemType Directory -Path $script:zipSource | Out-Null
+        foreach ($name in 'Sysmon.exe', 'Sysmon64.exe', 'Sysmon64a.exe', 'Eula.txt') { Set-Content -LiteralPath (Join-Path $script:zipSource $name) -Value $name }
+        $script:zip = Join-Path $TestDrive 'Sysmon.zip'
+        Compress-Archive -Path (Join-Path $script:zipSource '*') -DestinationPath $script:zip
+    }
+    BeforeEach {
+        Mock -ModuleName NSP.Win.Sysmon Invoke-WebRequest { Copy-Item -LiteralPath $script:zip -Destination $OutFile }
+        $script:destination = Join-Path $TestDrive ('out-' + [guid]::NewGuid().ToString('N'))
+    }
+    It 'keeps a Microsoft-signed binary and its EULA, without installing anything' {
+        Mock -ModuleName NSP.Win.Sysmon Get-AuthenticodeSignature { [pscustomobject]@{ Status = 'Valid'; SignerCertificate = [pscustomobject]@{ Subject = 'CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US'; Thumbprint = 'ABC' } } }
+        Mock -ModuleName NSP.Win.Sysmon Invoke-NSPSysmonExe { throw 'must not run Sysmon' }
+        $result = Save-NSPSysmon -Destination $script:destination
+        Test-Path -LiteralPath $result.Path | Should -BeTrue
+        [IO.Path]::GetFileName($result.Path) | Should -BeIn @('Sysmon64.exe', 'Sysmon64a.exe', 'Sysmon.exe')
+        Test-Path -LiteralPath (Join-Path $script:destination 'Eula.txt') | Should -BeTrue
+        Should -Invoke -ModuleName NSP.Win.Sysmon Invoke-WebRequest -Times 1 -ParameterFilter { $Uri -eq 'https://download.sysinternals.com/files/Sysmon.zip' }
+    }
+    It 'keeps nothing when the signature is invalid or not Microsoft''s' {
+        Mock -ModuleName NSP.Win.Sysmon Get-AuthenticodeSignature { [pscustomobject]@{ Status = 'HashMismatch'; SignerCertificate = [pscustomobject]@{ Subject = 'O=Microsoft Corporation'; Thumbprint = 'ABC' } } }
+        { Save-NSPSysmon -Destination $script:destination } | Should -Throw '*not validly signed by Microsoft*'
+        Test-Path -LiteralPath $script:destination | Should -BeFalse
+        Mock -ModuleName NSP.Win.Sysmon Get-AuthenticodeSignature { [pscustomobject]@{ Status = 'Valid'; SignerCertificate = [pscustomobject]@{ Subject = 'CN=Someone, O=Not Microsoft Corporation Ltd'; Thumbprint = 'DEF' } } }
+        { Save-NSPSysmon -Destination $script:destination } | Should -Throw '*not validly signed by Microsoft*'
+        Test-Path -LiteralPath $script:destination | Should -BeFalse
+    }
+    It 'downloads nothing with -WhatIf' {
+        Save-NSPSysmon -Destination $script:destination -WhatIf
+        Should -Invoke -ModuleName NSP.Win.Sysmon Invoke-WebRequest -Times 0
+    }
+}
